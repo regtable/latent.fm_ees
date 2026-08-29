@@ -25,12 +25,13 @@ git commit -m "Update Latent.fm"
 git push
 ```
 
-The Space loads:
+The Space fetches:
 
-`https://cdn.jsdelivr.net/gh/regtable/latent.fm_ees@main/dist/latent-fm.js`
+`https://raw.githubusercontent.com/regtable/latent.fm_ees/main/dist/latent-fm.js`
 
-jsDelivr can briefly cache the `main` branch. The loader adds a query value for
-retries; for deterministic releases, change the loader URL to a commit SHA or tag.
+GitHub Raw serves JavaScript as plain text, so the loader converts the response to
+a browser `Blob` module before importing it. It adds a query value and disables the
+HTTP cache for retries; for deterministic releases, pin the URL to a commit SHA.
 
 ## Application contract
 

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as flowSdk from "@flowmusic/sdk";
 
-const REMOTE_MODULE =
-  "https://cdn.jsdelivr.net/gh/regtable/latent.fm_ees@main/dist/latent-fm.js";
+const REMOTE_SOURCE =
+  "https://raw.githubusercontent.com/regtable/latent.fm_ees/main/dist/latent-fm.js";
 
 type RemoteModule = {
   createApp(runtime: { React: typeof React; flowSdk: typeof flowSdk }): React.ComponentType;
@@ -21,17 +21,25 @@ export default function Component() {
 
   useEffect(() => {
     let active = true;
-    const preload = document.createElement("link");
-    preload.rel = "modulepreload";
-    preload.href = REMOTE_MODULE;
-    preload.crossOrigin = "anonymous";
-    document.head.appendChild(preload);
+    let blobUrl: string | null = null;
 
     (async () => {
       try {
-        const remote = (await import(
-          /* @vite-ignore */ `${REMOTE_MODULE}?attempt=${attempt}`
-        )) as RemoteModule;
+        const response = await fetch(`${REMOTE_SOURCE}?attempt=${attempt}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error(`GitHub returned ${response.status} while loading the app.`);
+        }
+
+        // GitHub Raw is intentionally served as plain text. Converting the
+        // fetched source to a JavaScript Blob gives import() the correct MIME
+        // type without introducing another CDN or exposing Flow credentials.
+        const source = await response.text();
+        blobUrl = URL.createObjectURL(
+          new Blob([source], { type: "text/javascript" }),
+        );
+        const remote = (await import(/* @vite-ignore */ blobUrl)) as RemoteModule;
         if (typeof remote.createApp !== "function") {
           throw new Error("Remote module does not export createApp().");
         }
@@ -46,7 +54,7 @@ export default function Component() {
 
     return () => {
       active = false;
-      preload.remove();
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [attempt]);
 
