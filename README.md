@@ -45,6 +45,12 @@ Use `runtime.React` for hooks and JSX. Use `runtime.flowSdk` for Flow Music call
 Keep SDK types in `src/flow-sdk.ts` structural and expand them as you use more SDK
 methods.
 
+The experimental library loader in `src/flow-library.ts` resolves
+`/__api/clips/auth-user` from `window.location.origin`. It never reads a cookie
+or token directly. Flow's browser context decides whether a credentialed request
+is permitted; an opaque or blocked Space origin produces a visible error instead
+of falling back to a hard-coded domain.
+
 ## Space setup
 
 Create a blank frontend-component Space and replace its `main.tsx` with the
