@@ -38,7 +38,8 @@ function createApp(runtime) {
     const [lookupState, setLookupState] = React.useState("Loading Raw Ledger…");
     const [lookupError, setLookupError] = React.useState("");
     const [sound, setSound] = React.useState("A nocturnal electronic pulse with warm analogue bass, clipped drums, and a patient cinematic build");
-    const [signature, setSignature] = React.useState("string");
+    const [title, setTitle] = React.useState("Latent Signal");
+    const [lyrics, setLyrics] = React.useState("");
     const [generationState, setGenerationState] = React.useState("Ready");
     const [generationResult, setGenerationResult] = React.useState(null);
     const [generationError, setGenerationError] = React.useState("");
@@ -72,8 +73,11 @@ function createApp(runtime) {
       setGenerationState("Generating…");
       setGenerationError("");
       setGenerationResult(null);
-      const prompt = sound.trim();
-      const argument = signature === "string" ? prompt : { [signature]: prompt };
+      const argument = {
+        soundPrompt: sound.trim(),
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(lyrics.trim() ? { lyrics: lyrics.trim() } : {}),
+      };
       const startedAt = new Date().toISOString();
       setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\nWaiting for Flow…`);
       try {
@@ -116,21 +120,28 @@ function createApp(runtime) {
 
     const generationPanel = h("article", { style: panelStyle },
       topLine("generateSong test", generationState, generationState === "Failed" ? "#ff9a9a" : "#f4d58d"),
-      h("p", { style: { color: "#83a98d", lineHeight: 1.5 } }, "Edit the sound prompt, then invoke Flow's native generation function."),
-      h("textarea", { "aria-label": "Sound prompt", rows: 6, style: { ...inputStyle, resize: "vertical", lineHeight: 1.5 }, value: sound, onChange: (event) => setSound(event.target.value) }),
-      h("label", { style: { display: "grid", gap: 7, marginTop: 12, color: "#83a98d", fontSize: 12 } }, "SDK argument shape",
-        h("select", { "aria-label": "SDK argument shape", value: signature, onChange: (event) => setSignature(event.target.value), style: inputStyle },
-          h("option", { value: "string" }, "generateSong(promptString) — recommended"),
-          h("option", { value: "prompt" }, "generateSong({ prompt })"),
-          h("option", { value: "sound" }, "generateSong({ sound }) — previous failure")
-        )
+      h("p", { style: { color: "#83a98d", lineHeight: 1.5 } }, "Uses Flow's verified native contract: ", h("code", null, "generateSong({ soundPrompt, title?, lyrics? })"), "."),
+      h("label", { style: { display: "grid", gap: 7, color: "#83a98d", fontSize: 12 } }, "Title",
+        h("input", { "aria-label": "Song title", style: inputStyle, value: title, onChange: (event) => setTitle(event.target.value) })
+      ),
+      h("label", { style: { display: "grid", gap: 7, marginTop: 12, color: "#83a98d", fontSize: 12 } }, "Sound prompt ", h("span", { style: { color: "#6f9578" } }, "required"),
+        h("textarea", { "aria-label": "Sound prompt", rows: 5, style: { ...inputStyle, resize: "vertical", lineHeight: 1.5 }, value: sound, onChange: (event) => setSound(event.target.value) })
+      ),
+      h("label", { style: { display: "grid", gap: 7, marginTop: 12, color: "#83a98d", fontSize: 12 } }, "Lyrics ", h("span", { style: { color: "#6f9578" } }, "optional; leave blank for instrumental"),
+        h("textarea", { "aria-label": "Lyrics", rows: 4, style: { ...inputStyle, resize: "vertical", lineHeight: 1.5 }, value: lyrics, onChange: (event) => setLyrics(event.target.value) })
       ),
       h("div", { style: { display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" } },
         h("button", { style: buttonStyle, disabled: generationState === "Generating…" || !sound.trim(), onClick: () => void generate() }, "Generate song"),
         h("span", { style: { color: "#6f9578", fontSize: 12 } }, "One click sends one request and may use Flow credits.")
       ),
       generationError && h("pre", { style: { whiteSpace: "pre-wrap", color: "#ff9a9a", fontSize: 12 } }, generationError),
-      generationResult !== null && h("pre", { style: { marginTop: 18, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 } }, JSON.stringify(generationResult, null, 2)),
+      generationResult !== null && h("div", { style: { marginTop: 18 } },
+        h("div", { style: { color: "#8df0a6", fontSize: 12, letterSpacing: ".12em", fontWeight: 800 } }, "GENERATED CLIP"),
+        h("h3", { style: { fontSize: 24, margin: "7px 0 3px" } }, generationResult.title || "Untitled Flow song"),
+        h("code", { style: { color: "#6f9578", fontSize: 11 } }, generationResult.id || generationResult.operationId || "No clip ID returned"),
+        generationResult.audioUrl && h("audio", { controls: true, src: generationResult.audioUrl, style: { width: "100%", marginTop: 14 } }),
+        h("pre", { style: { maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 } }, safeJson(generationResult))
+      ),
       h("details", { open: true, style: { marginTop: 18 } },
         h("summary", { style: { cursor: "pointer", color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".08em" } }, "DIAGNOSTIC TRACE"),
         h("pre", { style: { maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 } }, generationLog)
