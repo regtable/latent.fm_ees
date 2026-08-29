@@ -1,17 +1,36 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as flowSdk from "@flowmusic/sdk";
 
 const REMOTE_SOURCE =
   "https://raw.githubusercontent.com/regtable/latent.fm_ees/main/dist/latent-fm.js";
 
 type RemoteModule = {
-  createApp(runtime: { React: typeof React; flowSdk: typeof flowSdk }): React.ComponentType;
+  createApp(runtime: {
+    React: typeof React;
+    flowSdk: {
+      getSong: typeof flowSdk.getSong;
+      generateSong: typeof flowSdk.generateSong;
+    };
+  }): React.ComponentType;
 };
 
 export default function Component() {
   const [RemoteApp, setRemoteApp] = useState<React.ComponentType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+
+  // All authenticated operations remain native to the Flow Space. The remote
+  // application receives only this explicit capability list—never a cookie,
+  // token, or unrestricted Flow SDK object.
+  const sdkBridge = useMemo(
+    () => ({
+      getSong: (...args: Parameters<typeof flowSdk.getSong>) =>
+        flowSdk.getSong(...args),
+      generateSong: (...args: Parameters<typeof flowSdk.generateSong>) =>
+        flowSdk.generateSong(...args),
+    }),
+    [],
+  );
 
   const retry = useCallback(() => {
     setRemoteApp(null);
@@ -43,7 +62,7 @@ export default function Component() {
         if (typeof remote.createApp !== "function") {
           throw new Error("Remote module does not export createApp().");
         }
-        const App = remote.createApp({ React, flowSdk });
+        const App = remote.createApp({ React, flowSdk: sdkBridge });
         if (active) setRemoteApp(() => App);
       } catch (cause) {
         if (active) {
@@ -56,7 +75,7 @@ export default function Component() {
       active = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [attempt]);
+  }, [attempt, sdkBridge]);
 
   if (RemoteApp) return <RemoteApp />;
 
