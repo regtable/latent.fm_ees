@@ -1,5 +1,6 @@
 import type * as ReactNamespace from "react";
 import type { FlowSdk, FlowSong, GenerateSongInput } from "./flow-sdk";
+import { fetchTracksPage } from "./flow-library";
 
 export interface LatentRuntime {
   React: typeof ReactNamespace;
@@ -51,6 +52,7 @@ export function createApp(runtime: LatentRuntime) {
   const React = runtime.React;
   const sdk = runtime.sdk ?? runtime.flowSdk;
   if (!sdk) throw new Error("Flow SDK capabilities were not injected by the Space shell.");
+  const connectedSdk: FlowSdk = sdk;
 
   return function LatentFmApp() {
     const [songId, setSongId] = React.useState(SAMPLE_SONG_ID);
@@ -64,9 +66,27 @@ export function createApp(runtime: LatentRuntime) {
     const [generationResult, setGenerationResult] = React.useState<FlowSong | null>(null);
     const [generationError, setGenerationError] = React.useState("");
     const [generationLog, setGenerationLog] = React.useState("No generation request sent in this page load.");
+    const [librarySongs, setLibrarySongs] = React.useState<FlowSong[]>([]);
+    const [libraryState, setLibraryState] = React.useState("Not requested");
+    const [libraryError, setLibraryError] = React.useState("");
+    const [libraryFilter, setLibraryFilter] = React.useState("");
+
+    async function loadLibrary() {
+      setLibraryState("Loading…");
+      setLibraryError("");
+      setLibrarySongs([]);
+      try {
+        const page = await fetchTracksPage({ limit: 10, offset: 0, filter: libraryFilter.trim() });
+        setLibrarySongs(page.tracks);
+        setLibraryState(`Loaded ${page.tracks.length} from ${page.origin}`);
+      } catch (error) {
+        setLibraryState("Failed");
+        setLibraryError(error instanceof Error ? error.message : String(error));
+      }
+    }
 
     async function lookupSong(id = songId) {
-      if (!sdk.getSong) {
+      if (!connectedSdk.getSong) {
         setLookupState("Unavailable");
         setLookupError("getSong is not present in this Flow runtime.");
         return;
@@ -74,7 +94,7 @@ export function createApp(runtime: LatentRuntime) {
       setLookupState("Loading…");
       setLookupError("");
       try {
-        const nextSong = await sdk.getSong(id.trim());
+        const nextSong = await connectedSdk.getSong(id.trim());
         setSong(nextSong);
         setLookupState("Connected");
       } catch (error) {
@@ -85,7 +105,7 @@ export function createApp(runtime: LatentRuntime) {
     }
 
     async function generate() {
-      if (!sdk.generateSong) {
+      if (!connectedSdk.generateSong) {
         setGenerationState("Unavailable");
         setGenerationError("generateSong is not present in this Flow runtime.");
         return;
@@ -101,7 +121,7 @@ export function createApp(runtime: LatentRuntime) {
       const startedAt = new Date().toISOString();
       setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\nWaiting for Flow…`);
       try {
-        const result = await sdk.generateSong(argument);
+        const result = await connectedSdk.generateSong(argument);
         setGenerationResult(result);
         setGenerationState("Complete");
         setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\n\nRESOLVED\n${safeJson(result)}`);
@@ -227,6 +247,40 @@ export function createApp(runtime: LatentRuntime) {
                 <summary style={{ cursor: "pointer", color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".08em" }}>DIAGNOSTIC TRACE</summary>
                 <pre style={{ maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 }}>{generationLog}</pre>
               </details>
+            </article>
+          </section>
+
+          <section style={{ marginTop: 18 }}>
+            <article style={{ border: "1px solid rgba(189,255,206,.18)", borderRadius: 22, padding: 22, background: "rgba(8,27,17,.72)", backdropFilter: "blur(16px)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div>
+                  <p style={{ color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".12em", margin: 0 }}>CALLER-ORIGIN EXPERIMENT</p>
+                  <h2 style={{ margin: "7px 0 0", fontSize: 24 }}>My first 10 songs</h2>
+                </div>
+                <span style={{ color: libraryState.startsWith("Loaded") ? "#8df0a6" : libraryState === "Failed" ? "#ff9a9a" : "#f4d58d", fontSize: 13 }}>{libraryState}</span>
+              </div>
+              <p style={{ color: "#83a98d", lineHeight: 1.5, maxWidth: 760 }}>
+                Resolves <code>/__api/clips/auth-user</code> against the page that called this module. The browser handles its own Flow credentials; this code never reads or displays them.
+              </p>
+              <div style={{ display: "flex", gap: 9, alignItems: "end", flexWrap: "wrap" }}>
+                <label style={{ display: "grid", gap: 7, color: "#83a98d", fontSize: 12, flex: "1 1 280px" }}>
+                  Filter <span style={{ color: "#6f9578" }}>optional; copied from your downloader when needed</span>
+                  <input aria-label="Library filter" style={inputStyle} value={libraryFilter} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setLibraryFilter(event.target.value)} />
+                </label>
+                <button style={buttonStyle} disabled={libraryState === "Loading…"} onClick={() => void loadLibrary()}>Load first 10</button>
+              </div>
+              {libraryError && <pre style={{ whiteSpace: "pre-wrap", color: "#ff9a9a", fontSize: 12 }}>{libraryError}</pre>}
+              {librarySongs.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 20 }}>
+                  {librarySongs.map((track, index) => (
+                    <div key={track.id || index} style={{ border: "1px solid rgba(189,255,206,.14)", borderRadius: 14, padding: 14, background: "rgba(2,7,5,.6)" }}>
+                      <div style={{ color: "#6f9578", fontSize: 11 }}>#{index + 1}</div>
+                      <h3 style={{ margin: "5px 0 3px", fontSize: 17 }}>{track.title || "Untitled Flow song"}</h3>
+                      {track.audioUrl && <audio controls preload="none" src={track.audioUrl} style={{ width: "100%", marginTop: 10 }} />}
+                    </div>
+                  ))}
+                </div>
+              )}
             </article>
           </section>
         </div>
