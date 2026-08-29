@@ -4,20 +4,24 @@
  */
 export interface FlowSong {
   id?: string;
+  operationId?: string;
   title?: string;
   audioUrl?: string;
+  duration?: number | null;
+  coverImageUrl?: string | null;
+  lyrics?: unknown | null;
   [key: string]: unknown;
 }
 
 export interface GenerateSongInput {
-  prompt?: string;
-  sound?: string;
+  soundPrompt: string;
   lyrics?: string;
-  [key: string]: unknown;
+  title?: string;
+  seed?: number;
 }
 
 export interface FlowSdk {
   getSong?: (id: string) => Promise<FlowSong>;
-  generateSong?: (input: GenerateSongInput | string) => Promise<unknown>;
+  generateSong?: (input: GenerateSongInput) => Promise<FlowSong>;
   [key: string]: unknown;
 }

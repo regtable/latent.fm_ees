@@ -1,5 +1,5 @@
 import type * as ReactNamespace from "react";
-import type { FlowSdk, FlowSong } from "./flow-sdk";
+import type { FlowSdk, FlowSong, GenerateSongInput } from "./flow-sdk";
 
 export interface LatentRuntime {
   React: typeof ReactNamespace;
@@ -17,9 +17,10 @@ export function createApp(runtime: LatentRuntime) {
     const [lookupState, setLookupState] = React.useState("Loading Raw Ledger…");
     const [lookupError, setLookupError] = React.useState("");
     const [sound, setSound] = React.useState("A nocturnal electronic pulse with warm analogue bass, clipped drums, and a patient cinematic build");
-    const [signature, setSignature] = React.useState<"string" | "prompt" | "sound">("string");
+    const [title, setTitle] = React.useState("Latent Signal");
+    const [lyrics, setLyrics] = React.useState("");
     const [generationState, setGenerationState] = React.useState("Ready");
-    const [generationResult, setGenerationResult] = React.useState<unknown>(null);
+    const [generationResult, setGenerationResult] = React.useState<FlowSong | null>(null);
     const [generationError, setGenerationError] = React.useState("");
     const [generationLog, setGenerationLog] = React.useState("No generation request sent in this page load.");
 
@@ -51,8 +52,11 @@ export function createApp(runtime: LatentRuntime) {
       setGenerationState("Generating…");
       setGenerationError("");
       setGenerationResult(null);
-      const prompt = sound.trim();
-      const argument = signature === "string" ? prompt : { [signature]: prompt };
+      const argument: GenerateSongInput = {
+        soundPrompt: sound.trim(),
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(lyrics.trim() ? { lyrics: lyrics.trim() } : {}),
+      };
       const startedAt = new Date().toISOString();
       setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\nWaiting for Flow…`);
       try {
@@ -128,22 +132,33 @@ export function createApp(runtime: LatentRuntime) {
                 <h2 style={{ margin: 0, fontSize: 20 }}>generateSong test</h2>
                 <span style={{ color: generationState === "Failed" ? "#ff9a9a" : "#f4d58d", fontSize: 13 }}>{generationState}</span>
               </div>
-              <p style={{ color: "#83a98d", lineHeight: 1.5 }}>Edit the sound prompt, then invoke Flow's native generation function.</p>
-              <textarea aria-label="Sound prompt" rows={6} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} value={sound} onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setSound(event.target.value)} />
+              <p style={{ color: "#83a98d", lineHeight: 1.5 }}>Uses Flow's verified native contract: <code>{"generateSong({ soundPrompt, title?, lyrics? })"}</code>.</p>
+              <label style={{ display: "grid", gap: 7, color: "#83a98d", fontSize: 12 }}>
+                Title
+                <input aria-label="Song title" style={inputStyle} value={title} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setTitle(event.target.value)} />
+              </label>
               <label style={{ display: "grid", gap: 7, marginTop: 12, color: "#83a98d", fontSize: 12 }}>
-                SDK argument shape
-                <select aria-label="SDK argument shape" value={signature} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSignature(event.target.value as "string" | "prompt" | "sound")} style={inputStyle}>
-                  <option value="string">generateSong(promptString) — recommended</option>
-                  <option value="prompt">{"generateSong({ prompt })"}</option>
-                  <option value="sound">{"generateSong({ sound }) — previous failure"}</option>
-                </select>
+                Sound prompt <span style={{ color: "#6f9578" }}>required</span>
+                <textarea aria-label="Sound prompt" rows={5} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} value={sound} onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setSound(event.target.value)} />
+              </label>
+              <label style={{ display: "grid", gap: 7, marginTop: 12, color: "#83a98d", fontSize: 12 }}>
+                Lyrics <span style={{ color: "#6f9578" }}>optional; leave blank for instrumental</span>
+                <textarea aria-label="Lyrics" rows={4} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} value={lyrics} onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setLyrics(event.target.value)} />
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
                 <button style={buttonStyle} disabled={generationState === "Generating…" || !sound.trim()} onClick={() => void generate()}>Generate song</button>
                 <span style={{ color: "#6f9578", fontSize: 12 }}>One click sends one request and may use Flow credits.</span>
               </div>
               {generationError && <pre style={{ whiteSpace: "pre-wrap", color: "#ff9a9a", fontSize: 12 }}>{generationError}</pre>}
-              {generationResult !== null && <pre style={{ marginTop: 18, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 }}>{JSON.stringify(generationResult, null, 2)}</pre>}
+              {generationResult !== null && (
+                <div style={{ marginTop: 18 }}>
+                  <div style={{ color: "#8df0a6", fontSize: 12, letterSpacing: ".12em", fontWeight: 800 }}>GENERATED CLIP</div>
+                  <h3 style={{ fontSize: 24, margin: "7px 0 3px" }}>{generationResult.title || "Untitled Flow song"}</h3>
+                  <code style={{ color: "#6f9578", fontSize: 11 }}>{generationResult.id || generationResult.operationId || "No clip ID returned"}</code>
+                  {generationResult.audioUrl && <audio controls src={generationResult.audioUrl} style={{ width: "100%", marginTop: 14 }} />}
+                  <pre style={{ maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 }}>{safeJson(generationResult)}</pre>
+                </div>
+              )}
               <details open style={{ marginTop: 18 }}>
                 <summary style={{ cursor: "pointer", color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".08em" }}>DIAGNOSTIC TRACE</summary>
                 <pre style={{ maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 }}>{generationLog}</pre>
