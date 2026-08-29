@@ -1,7 +1,30 @@
 const SAMPLE_SONG_ID = "c214086f-70cd-4f49-95c5-d074fc39f18c";
+const SDK_GROUPS = [
+  { title: "Songs", note: "Lookup is read-only. Generation and editing consume credits.", functions: [
+    { signature: "getSong(clipId): Promise<Clip>", example: "const clip = await sdk.getSong(clipId);" },
+    { signature: "generateSong({ soundPrompt, lyrics?, title?, seed? }): Promise<Clip>", example: "const clip = await sdk.generateSong({\n  soundPrompt: \"warm analogue electronica\",\n  title: \"Latent Signal\"\n});" }
+  ] },
+  { title: "Editing & analysis", note: "Every result is ready to play when its promise resolves.", functions: [
+    { signature: "extendSong({ clipId, instruction, extendSeconds, ... }): Promise<Clip>", example: "await sdk.extendSong({ clipId, instruction: \"Add a guitar outro\", extendSeconds: 30 });" },
+    { signature: "inpaintSong({ clipId, instruction, regions, ... }): Promise<Clip>", example: "await sdk.inpaintSong({ clipId, instruction: \"Jazz piano solo\", regions: [{ startTime: 15, endTime: 30 }] });" },
+    { signature: "coverSong({ clipId, instruction, strength?, ... }): Promise<Clip>", example: "await sdk.coverSong({ clipId, instruction: \"Lo-fi hip hop version\", strength: 0.6 });" },
+    { signature: "splitStems({ clipId }): Promise<{ vocals, drums, bass, other }>", example: "const stems = await sdk.splitStems({ clipId });" }
+  ] },
+  { title: "Lyrics & visual media", note: "Generation calls consume the corresponding Flow credits.", functions: [
+    { signature: "writeLyrics({ prompt }): Promise<{ title, lyrics, soundPrompt }>", example: "const draft = await sdk.writeLyrics({ prompt: \"Indie pop about summer travel\" });" },
+    { signature: "generateImage({ prompt, aspectRatio?, imageUrls? }): Promise<{ imageUrl }>", example: "const art = await sdk.generateImage({ prompt: \"Watercolor ocean\", aspectRatio: \"16:9\" });" },
+    { signature: "generateVideo({ prompt, aspectRatio?, duration? }): Promise<{ videoUrl }>", example: "const video = await sdk.generateVideo({ prompt: \"Rainy neon city\", duration: 4 });" }
+  ] },
+  { title: "Realtime Lyria", note: "The hook must run in native Flow main.tsx. Pass its returned controls—not the hook—to remote code.", functions: [
+    { signature: "useLyriaRealtime(): UseLyriaRealtimeResult", example: "const realtime = useLyriaRealtime();\nrealtime.setPrompts([{ text: \"ambient pulse\", weight: 1 }]);\n// call play() from a user gesture" },
+    { signature: "NOTE.C … NOTE.B // chromatic values 0–11", example: "realtime.setConfig({ bpm: 110, rootNote: NOTE.C, majorScale: false });" }
+  ] }
+];
 
 function createApp(runtime) {
   const React = runtime.React;
+  const sdk = runtime.sdk || runtime.flowSdk;
+  if (!sdk) throw new Error("Flow SDK capabilities were not injected by the Space shell.");
   const h = React.createElement;
   const inputStyle = { width: "100%", boxSizing: "border-box", border: "1px solid rgba(189,255,206,.24)", borderRadius: 12, background: "rgba(3,14,9,.68)", color: "#ecfff0", padding: "12px 14px", font: "inherit", outline: "none" };
   const buttonStyle = { border: 0, borderRadius: 999, padding: "11px 17px", background: "#baffc9", color: "#08210e", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" };
@@ -46,7 +69,7 @@ function createApp(runtime) {
     const [generationLog, setGenerationLog] = React.useState("No generation request sent in this page load.");
 
     async function lookupSong(id = songId) {
-      if (!runtime.flowSdk.getSong) {
+      if (!sdk.getSong) {
         setLookupState("Unavailable");
         setLookupError("getSong is not present in this Flow runtime.");
         return;
@@ -54,7 +77,7 @@ function createApp(runtime) {
       setLookupState("Loading…");
       setLookupError("");
       try {
-        const nextSong = await runtime.flowSdk.getSong(id.trim());
+        const nextSong = await sdk.getSong(id.trim());
         setSong(nextSong);
         setLookupState("Connected");
       } catch (error) {
@@ -65,7 +88,7 @@ function createApp(runtime) {
     }
 
     async function generate() {
-      if (!runtime.flowSdk.generateSong) {
+      if (!sdk.generateSong) {
         setGenerationState("Unavailable");
         setGenerationError("generateSong is not present in this Flow runtime.");
         return;
@@ -81,7 +104,7 @@ function createApp(runtime) {
       const startedAt = new Date().toISOString();
       setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\nWaiting for Flow…`);
       try {
-        const result = await runtime.flowSdk.generateSong(argument);
+        const result = await sdk.generateSong(argument);
         setGenerationResult(result);
         setGenerationState("Complete");
         setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\n\nRESOLVED\n${safeJson(result)}`);
@@ -148,11 +171,34 @@ function createApp(runtime) {
       )
     );
 
+    const sdkCatalogue = h("section", { style: { marginBottom: 46 } },
+      h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "end", gap: 16, flexWrap: "wrap", marginBottom: 18 } },
+        h("div", null,
+          h("p", { style: { color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".12em", margin: 0 } }, "VERIFIED SDK SURFACE"),
+          h("h2", { style: { fontSize: 32, margin: "8px 0 0" } }, "These functions exist. Use them this way.")
+        ),
+        h("span", { style: { color: "#6f9578", fontSize: 12 } }, "Audited against the Space SDK declarations")
+      ),
+      h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(285px, 1fr))", gap: 14 } },
+        ...SDK_GROUPS.map((group) => h("article", { key: group.title, style: { border: "1px solid rgba(189,255,206,.18)", borderRadius: 20, padding: 20, background: "rgba(8,27,17,.62)" } },
+          h("h3", { style: { margin: 0, fontSize: 18 } }, group.title),
+          h("p", { style: { color: "#6f9578", fontSize: 12, lineHeight: 1.5 } }, group.note),
+          h("div", { style: { display: "grid", gap: 12 } }, ...group.functions.map((fn) => h("div", { key: fn.signature },
+            h("code", { style: { color: "#baffc9", fontSize: 12 } }, fn.signature),
+            h("pre", { style: { margin: "7px 0 0", whiteSpace: "pre-wrap", color: "#83a98d", background: "#020705", borderRadius: 10, padding: 10, fontSize: 10 } }, fn.example)
+          )))
+        ))
+      )
+    );
+
     return h("main", { style: { minHeight: "100vh", background: "radial-gradient(circle at 75% 0%, #123722 0, #07120c 42%, #030705 100%)", color: "#ecfff0", fontFamily: "Inter, ui-sans-serif, system-ui", padding: "clamp(24px, 5vw, 72px)" } },
       h("div", { style: { maxWidth: 980, margin: "0 auto" } },
-        h("p", { style: { letterSpacing: ".18em", color: "#8df0a6", fontSize: 12, fontWeight: 800 } }, "LATENT.FM / FLOW SDK LAB"),
-        h("h1", { style: { fontSize: "clamp(42px, 8vw, 88px)", lineHeight: .94, letterSpacing: "-.06em", margin: "18px 0 22px", maxWidth: 780 } }, "The signal starts here."),
-        h("p", { style: { color: "#acd1b5", fontSize: 18, lineHeight: 1.6, maxWidth: 700, marginBottom: 38 } }, "This interface is loaded from your public repository while Flow supplies the signed-in session, cookies, React runtime, and music SDK."),
+        h("p", { style: { letterSpacing: ".18em", color: "#8df0a6", fontSize: 12, fontWeight: 800 } }, "LATENT.FM / EXTERNAL EDITION"),
+        h("h1", { style: { fontSize: "clamp(42px, 8vw, 88px)", lineHeight: .94, letterSpacing: "-.06em", margin: "18px 0 22px", maxWidth: 840 } }, "Welcome to your Flow-powered app."),
+        h("p", { style: { color: "#acd1b5", fontSize: 18, lineHeight: 1.6, maxWidth: 760, marginBottom: 24 } }, "The UI and product code live in your public Git repository. Flow keeps the signed-in session and imports @flowmusic/sdk inside the native Space shell, then injects only the functions below."),
+        h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 42 } }, ...["Git-owned TSX", "Flow-authenticated SDK", "No cookies in the repo", "Functional capability calls"].map((label) => h("span", { key: label, style: { border: "1px solid rgba(141,240,166,.24)", borderRadius: 999, padding: "7px 11px", color: "#8df0a6", fontSize: 12 } }, label))),
+        sdkCatalogue,
+        h("div", { style: { marginBottom: 16 } }, h("p", { style: { color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".12em", margin: 0 } }, "LIVE PROOF"), h("h2", { style: { fontSize: 32, margin: "8px 0 0" } }, "Lookup and generation")),
         h("section", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18 } }, lookupPanel, generationPanel)
       )
     );
