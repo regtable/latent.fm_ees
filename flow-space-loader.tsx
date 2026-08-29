@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import * as flowSdk from "@flowmusic/sdk";
+import {
+  coverSong,
+  extendSong,
+  generateImage,
+  generateSong,
+  generateVideo,
+  getSong,
+  inpaintSong,
+  splitStems,
+  writeLyrics,
+} from "@flowmusic/sdk";
 
 const REMOTE_SOURCE =
   "https://raw.githubusercontent.com/regtable/latent.fm_ees/main/dist/latent-fm.js";
@@ -7,9 +17,16 @@ const REMOTE_SOURCE =
 type RemoteModule = {
   createApp(runtime: {
     React: typeof React;
-    flowSdk: {
-      getSong: typeof flowSdk.getSong;
-      generateSong: typeof flowSdk.generateSong;
+    sdk: {
+      getSong: typeof getSong;
+      generateSong: typeof generateSong;
+      extendSong: typeof extendSong;
+      inpaintSong: typeof inpaintSong;
+      coverSong: typeof coverSong;
+      splitStems: typeof splitStems;
+      generateImage: typeof generateImage;
+      generateVideo: typeof generateVideo;
+      writeLyrics: typeof writeLyrics;
     };
   }): React.ComponentType;
 };
@@ -22,12 +39,17 @@ export default function Component() {
   // All authenticated operations remain native to the Flow Space. The remote
   // application receives only this explicit capability list—never a cookie,
   // token, or unrestricted Flow SDK object.
-  const sdkBridge = useMemo(
+  const sdkCapabilities = useMemo(
     () => ({
-      getSong: (...args: Parameters<typeof flowSdk.getSong>) =>
-        flowSdk.getSong(...args),
-      generateSong: (...args: Parameters<typeof flowSdk.generateSong>) =>
-        flowSdk.generateSong(...args),
+      getSong: (...args: Parameters<typeof getSong>) => getSong(...args),
+      generateSong: (...args: Parameters<typeof generateSong>) => generateSong(...args),
+      extendSong: (...args: Parameters<typeof extendSong>) => extendSong(...args),
+      inpaintSong: (...args: Parameters<typeof inpaintSong>) => inpaintSong(...args),
+      coverSong: (...args: Parameters<typeof coverSong>) => coverSong(...args),
+      splitStems: (...args: Parameters<typeof splitStems>) => splitStems(...args),
+      generateImage: (...args: Parameters<typeof generateImage>) => generateImage(...args),
+      generateVideo: (...args: Parameters<typeof generateVideo>) => generateVideo(...args),
+      writeLyrics: (...args: Parameters<typeof writeLyrics>) => writeLyrics(...args),
     }),
     [],
   );
@@ -62,7 +84,7 @@ export default function Component() {
         if (typeof remote.createApp !== "function") {
           throw new Error("Remote module does not export createApp().");
         }
-        const App = remote.createApp({ React, flowSdk: sdkBridge });
+        const App = remote.createApp({ React, sdk: sdkCapabilities });
         if (active) setRemoteApp(() => App);
       } catch (cause) {
         if (active) {
@@ -75,7 +97,7 @@ export default function Component() {
       active = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [attempt, sdkBridge]);
+  }, [attempt, sdkCapabilities]);
 
   if (RemoteApp) return <RemoteApp />;
 
