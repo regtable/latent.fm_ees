@@ -46,10 +46,10 @@ Keep SDK types in `src/flow-sdk.ts` structural and expand them as you use more S
 methods.
 
 The experimental library loader in `src/flow-library.ts` resolves
-`/__api/clips/auth-user` from `window.location.origin`. It never reads a cookie
-or token directly. Flow's browser context decides whether a credentialed request
-is permitted; an opaque or blocked Space origin produces a visible error instead
-of falling back to a hard-coded domain.
+`/__api/clips/auth-user` from the allow-listed Flow caller or parent/referrer
+origin. It never reads a cookie or token directly. Flow's browser context decides
+whether a credentialed request is permitted; an unrecognized or blocked origin
+produces a visible error instead of silently contacting an arbitrary domain.
 
 ## Space setup
 
