@@ -51,6 +51,15 @@ origin. It never reads a cookie or token directly. Flow's browser context decide
 whether a credentialed request is permitted; an unrecognized or blocked origin
 produces a visible error instead of silently contacting an arbitrary domain.
 
+### Observed Space result
+
+The current private V1 Space verifies both routing cases: resolving against the
+Space runtime origin returns HTTP 404, while resolving against the allow-listed
+Flow parent origin fails before a readable response is returned. This is
+consistent with the iframe/CORS boundary described by Flow's Producer. The UI is
+therefore an explicit diagnostic experiment, not a supported production library
+API integration.
+
 ## Space setup
 
 Create a blank frontend-component Space and replace its `main.tsx` with the
