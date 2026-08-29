@@ -27,10 +27,7 @@ export async function fetchTracksPage({
   filter = "",
   signal,
 }: FetchTracksPageOptions = {}): Promise<TracksPage> {
-  const callerOrigin = window.location.origin;
-  if (!callerOrigin || callerOrigin === "null") {
-    throw new Error("The Space has an opaque caller origin, so Flow credentials cannot be used here.");
-  }
+  const callerOrigin = resolveFlowOrigin();
 
   const safeLimit = Math.min(30, Math.max(1, Math.trunc(limit)));
   const safeOffset = Math.max(0, Math.trunc(offset));
@@ -57,6 +54,28 @@ export async function fetchTracksPage({
     limit: safeLimit,
     offset: safeOffset,
   };
+}
+
+function resolveFlowOrigin() {
+  const candidates = [window.location.origin];
+  if (document.referrer) {
+    try { candidates.push(new URL(document.referrer).origin); }
+    catch { /* Ignore a malformed referrer and fail closed below. */ }
+  }
+
+  const flowOrigin = candidates.find((candidate) => {
+    try {
+      const hostname = new URL(candidate).hostname;
+      return hostname === "flowmusic.app" || hostname.endsWith(".flowmusic.app");
+    } catch {
+      return false;
+    }
+  });
+
+  if (!flowOrigin) {
+    throw new Error("The caller did not expose an approved Flow Music origin.");
+  }
+  return flowOrigin;
 }
 
 function pickList(payload: unknown): FlowSong[] {

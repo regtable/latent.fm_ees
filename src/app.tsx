@@ -254,13 +254,13 @@ export function createApp(runtime: LatentRuntime) {
             <article style={{ border: "1px solid rgba(189,255,206,.18)", borderRadius: 22, padding: 22, background: "rgba(8,27,17,.72)", backdropFilter: "blur(16px)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <div>
-                  <p style={{ color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".12em", margin: 0 }}>CALLER-ORIGIN EXPERIMENT</p>
+                  <p style={{ color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".12em", margin: 0 }}>FLOW-ORIGIN EXPERIMENT</p>
                   <h2 style={{ margin: "7px 0 0", fontSize: 24 }}>My first 10 songs</h2>
                 </div>
                 <span style={{ color: libraryState.startsWith("Loaded") ? "#8df0a6" : libraryState === "Failed" ? "#ff9a9a" : "#f4d58d", fontSize: 13 }}>{libraryState}</span>
               </div>
               <p style={{ color: "#83a98d", lineHeight: 1.5, maxWidth: 760 }}>
-                Resolves <code>/__api/clips/auth-user</code> against the page that called this module. The browser handles its own Flow credentials; this code never reads or displays them.
+                Resolves <code>/__api/clips/auth-user</code> against the approved Flow caller or parent origin. The browser handles its own Flow credentials; this code never reads or displays them.
               </p>
               <div style={{ display: "flex", gap: 9, alignItems: "end", flexWrap: "wrap" }}>
                 <label style={{ display: "grid", gap: 7, color: "#83a98d", fontSize: 12, flex: "1 1 280px" }}>
