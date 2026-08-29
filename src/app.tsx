@@ -17,9 +17,11 @@ export function createApp(runtime: LatentRuntime) {
     const [lookupState, setLookupState] = React.useState("Loading Raw Ledger…");
     const [lookupError, setLookupError] = React.useState("");
     const [sound, setSound] = React.useState("A nocturnal electronic pulse with warm analogue bass, clipped drums, and a patient cinematic build");
+    const [signature, setSignature] = React.useState<"string" | "prompt" | "sound">("string");
     const [generationState, setGenerationState] = React.useState("Ready");
     const [generationResult, setGenerationResult] = React.useState<unknown>(null);
     const [generationError, setGenerationError] = React.useState("");
+    const [generationLog, setGenerationLog] = React.useState("No generation request sent in this page load.");
 
     async function lookupSong(id = songId) {
       if (!runtime.flowSdk.getSong) {
@@ -49,13 +51,20 @@ export function createApp(runtime: LatentRuntime) {
       setGenerationState("Generating…");
       setGenerationError("");
       setGenerationResult(null);
+      const prompt = sound.trim();
+      const argument = signature === "string" ? prompt : { [signature]: prompt };
+      const startedAt = new Date().toISOString();
+      setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\nWaiting for Flow…`);
       try {
-        const result = await runtime.flowSdk.generateSong({ sound: sound.trim() });
+        const result = await runtime.flowSdk.generateSong(argument);
         setGenerationResult(result);
         setGenerationState("Complete");
+        setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\n\nRESOLVED\n${safeJson(result)}`);
       } catch (error) {
         setGenerationState("Failed");
-        setGenerationError(error instanceof Error ? error.message : String(error));
+        const detail = describeError(error);
+        setGenerationError(detail.message);
+        setGenerationLog(`${startedAt}\nCALL generateSong(${JSON.stringify(argument, null, 2)})\n\nREJECTED\n${safeJson(detail)}`);
       }
     }
 
@@ -121,16 +130,59 @@ export function createApp(runtime: LatentRuntime) {
               </div>
               <p style={{ color: "#83a98d", lineHeight: 1.5 }}>Edit the sound prompt, then invoke Flow's native generation function.</p>
               <textarea aria-label="Sound prompt" rows={6} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} value={sound} onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setSound(event.target.value)} />
+              <label style={{ display: "grid", gap: 7, marginTop: 12, color: "#83a98d", fontSize: 12 }}>
+                SDK argument shape
+                <select aria-label="SDK argument shape" value={signature} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSignature(event.target.value as "string" | "prompt" | "sound")} style={inputStyle}>
+                  <option value="string">generateSong(promptString) — recommended</option>
+                  <option value="prompt">{"generateSong({ prompt })"}</option>
+                  <option value="sound">{"generateSong({ sound }) — previous failure"}</option>
+                </select>
+              </label>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
                 <button style={buttonStyle} disabled={generationState === "Generating…" || !sound.trim()} onClick={() => void generate()}>Generate song</button>
-                <span style={{ color: "#6f9578", fontSize: 12 }}>This may use Flow generation credits.</span>
+                <span style={{ color: "#6f9578", fontSize: 12 }}>One click sends one request and may use Flow credits.</span>
               </div>
               {generationError && <pre style={{ whiteSpace: "pre-wrap", color: "#ff9a9a", fontSize: 12 }}>{generationError}</pre>}
               {generationResult !== null && <pre style={{ marginTop: 18, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 }}>{JSON.stringify(generationResult, null, 2)}</pre>}
+              <details open style={{ marginTop: 18 }}>
+                <summary style={{ cursor: "pointer", color: "#8df0a6", fontSize: 12, fontWeight: 800, letterSpacing: ".08em" }}>DIAGNOSTIC TRACE</summary>
+                <pre style={{ maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#baffc9", background: "#020705", padding: 14, borderRadius: 12, fontSize: 11 }}>{generationLog}</pre>
+              </details>
             </article>
           </section>
         </div>
       </main>
     );
+  };
+}
+
+function safeJson(value: unknown) {
+  const seen = new WeakSet<object>();
+  try {
+    return JSON.stringify(value, (_key, item) => {
+      if (typeof item === "object" && item !== null) {
+        if (seen.has(item)) return "[Circular]";
+        seen.add(item);
+      }
+      return item;
+    }, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function describeError(error: unknown) {
+  if (!(error instanceof Error)) return { message: String(error), value: safeJson(error) };
+  const ownProperties: Record<string, unknown> = {};
+  for (const key of Object.getOwnPropertyNames(error)) {
+    try { ownProperties[key] = (error as unknown as Record<string, unknown>)[key]; }
+    catch { ownProperties[key] = "[unreadable]"; }
+  }
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    cause: error.cause,
+    ownProperties,
   };
 }

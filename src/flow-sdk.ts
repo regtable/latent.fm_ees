@@ -18,6 +18,6 @@ export interface GenerateSongInput {
 
 export interface FlowSdk {
   getSong?: (id: string) => Promise<FlowSong>;
-  generateSong?: (input: GenerateSongInput) => Promise<unknown>;
+  generateSong?: (input: GenerateSongInput | string) => Promise<unknown>;
   [key: string]: unknown;
 }
